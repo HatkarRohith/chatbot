@@ -36,6 +36,7 @@ if not api_key:
 @st.cache_resource
 def load_resources():
     embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+    # Use a persistent path for the DB so it doesn't reset on every rerun
     DB_DIR = os.path.join(tempfile.gettempdir(), "chroma_db_persistent")
     chroma_client = chromadb.PersistentClient(
         path=DB_DIR, 
@@ -117,7 +118,7 @@ if process_btn and uploaded_files:
 
 # --- CHAT INTERFACE ---
 st.title("🤖 Multimodal AI Agent")
-st.caption("Powered by Groq LPU | RAG (Llama-3) + Vision (LLaVA)")
+st.caption("Powered by Groq LPU | RAG (Llama-3) + Vision (Llama-3.2)")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -126,13 +127,12 @@ if "messages" not in st.session_state:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
-        # If there are source docs stored in the message, show them
         if "sources" in msg:
             with st.expander("🔍 Verified Sources (Explainability)"):
                 for src in msg["sources"]:
                     st.info(src)
 
-# --- IMAGE ANALYSIS LOGIC ---
+# --- IMAGE ANALYSIS LOGIC (UPDATED) ---
 if analyze_btn and uploaded_image:
     with st.chat_message("user"):
         st.image(uploaded_image, caption="Analyzing this image...", width=300)
@@ -150,13 +150,14 @@ if analyze_btn and uploaded_image:
                         ],
                     }
                 ],
-                model="llava-v1.5-7b-4096-preview",
+                # ✅ CORRECT MODEL FOR VISION
+                model="llama-3.2-11b-vision-preview", 
             )
             response_text = chat_completion.choices[0].message.content
             
             st.session_state.messages.append({"role": "user", "content": "Analyze uploaded image."})
             st.session_state.messages.append({"role": "assistant", "content": response_text})
-            st.rerun() # Refresh to show in chat history
+            st.rerun()
             
         except Exception as e:
             st.error(f"Error analyzing image: {e}")
@@ -178,7 +179,7 @@ if prompt := st.chat_input("Ask about your documents..."):
         context = ""
         
         if results['documents'] and results['documents'][0]:
-            source_docs = results['documents'][0] # Save for citation
+            source_docs = results['documents'][0] 
             context = "\n".join(source_docs)
             
             if len(context) > 6000:
@@ -220,4 +221,4 @@ if prompt := st.chat_input("Ask about your documents..."):
         if source_docs:
             with st.expander("🔍 Verified Sources (Explainability)"):
                 for src in source_docs:
-                    st.info(src[:300] + "...") # Preview first 300 chars
+                    st.info(src[:300] + "...")
