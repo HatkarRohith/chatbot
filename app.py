@@ -151,41 +151,51 @@ for msg in st.session_state.messages:
             st.image(msg["image"], width=250)
 
 # --- IMAGE ANALYSIS (AUTO TRIGGER) ---
-# If an image was just uploaded and hasn't been analyzed, let the user trigger it
+# 1. Initialize a set to track processed images if it doesn't exist
+if "processed_images" not in st.session_state:
+    st.session_state.processed_images = set()
+
 if images_to_process:
-    current_image = images_to_process[-1] # Take the most recent one
+    current_image = images_to_process[-1] # Look at the most recent image
     
-    with st.chat_message("assistant"):
-        st.write("I see you uploaded an image. What would you like to know?")
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            st.image(current_image, width=150, caption=current_image.name)
-        with col2:
-            if st.button("👀 Describe this Image"):
-                with st.spinner("Analyzing..."):
-                    try:
-                        base64_image = encode_image(current_image)
-                        chat_completion = client.chat.completions.create(
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "text", "text": "Describe this image in technical detail."},
-                                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                                    ],
-                                }
-                            ],
-                            # ✅ UPDATED MODEL: 90b is often more stable than 11b-preview
-                            model="meta-llama/llama-4-scout-17b-16e-instruct", 
-                        )
-                        response_text = chat_completion.choices[0].message.content
-                        
-                        # Add to history
-                        st.session_state.messages.append({"role": "user", "content": f"Analyze image: {current_image.name}"})
-                        st.session_state.messages.append({"role": "assistant", "content": response_text, "image": current_image})
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+    # 2. CHECK: Only show the "Describe" prompt if we haven't analyzed this specific file yet
+    if current_image.name not in st.session_state.processed_images:
+        
+        with st.chat_message("assistant"):
+            st.write("I see you uploaded an image. What would you like to know?")
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                st.image(current_image, width=150, caption=current_image.name)
+            with col2:
+                if st.button("👀 Describe this Image"):
+                    with st.spinner("Analyzing..."):
+                        try:
+                            base64_image = encode_image(current_image)
+                            chat_completion = client.chat.completions.create(
+                                messages=[
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {"type": "text", "text": "Describe this image in technical detail."},
+                                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                                        ],
+                                    }
+                                ],
+                                # Use the correct Llama 4 model
+                                model="meta-llama/llama-4-scout-17b-16e-instruct", 
+                            )
+                            response_text = chat_completion.choices[0].message.content
+                            
+                            # Add to history
+                            st.session_state.messages.append({"role": "user", "content": f"Analyze image: {current_image.name}"})
+                            st.session_state.messages.append({"role": "assistant", "content": response_text, "image": current_image})
+                            
+                            # 3. MARK AS DONE: Add to processed set so it doesn't appear again
+                            st.session_state.processed_images.add(current_image.name)
+                            
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
 # --- DOCUMENT Q&A LOGIC ---
 if prompt := st.chat_input("Ask about your documents..."):
