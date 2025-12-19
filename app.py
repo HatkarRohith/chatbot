@@ -196,7 +196,6 @@ if images_to_process:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error: {e}")
-
 # --- DOCUMENT Q&A LOGIC ---
 if prompt := st.chat_input("Ask about your documents..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
